@@ -2,10 +2,9 @@
 # -*- coding: utf-8 -*-
 """suivi_timekeeping_omega.py
 
-Exécution UNIQUE (pas de boucle interne) : relève TOUTES les montres Omega
-disponibles sur https://timekeeping.fr (Speedmaster, Seamaster, Constellation,
-De Ville, etc.) et ajoute une ligne par montre dans un CSV horodaté,
-uniquement si le prix a changé depuis le dernier relevé.
+Exécution UNIQUE (pas de boucle interne) : relève TOUTES les montres Omega disponibles sur 
+https://timekeeping.fr (Speedmaster, Seamaster, Constellation, De Ville, etc.) et ajoute 
+une ligne par montre dans un CSV horodaté, uniquement si le prix a changé depuis le dernier relevé.
 
 À chaque exécution, le script :
   1. met à jour le CSV (nouveautés, changements de prix, ventes) ;
@@ -25,30 +24,27 @@ La récurrence quotidienne est assurée par cron, PAS par ce script :
 
 Stratégie (dans cet ordre) :
 1. API Store WooCommerce (/wp-json/wc/store/v1/products) — publique, sans
-   authentification, retourne du JSON propre par catégorie. C'est la voie
-   normale sur un site WooCommerce. On filtre sur la catégorie "omega".
-2. Repli : si l'API est désactivée/absente (404/403), on récupère les URLs
-   de fiches produits via la recherche WordPress native (?s=omega,
-   HTML côté serveur, pas de JS) puis on lit les balises meta
-   (product:price:amount, product:availability) de chaque fiche.
+   authentification, retourne du JSON propre par catégorie. C'est la voie normale sur un site WooCommerce. 
+   On filtre sur la catégorie "omega".
+2. Repli : si l'API est désactivée/absente (404/403), on récupère les URLs de fiches produits 
+   via la recherche WordPress native (?s=omega, HTML côté serveur, pas de JS)
+   puis on lit les balises meta (product:price:amount, product:availability) de chaque fiche.
 
 NOTE IMPORTANTE : la page de listing https://timekeeping.fr/collections/omega
 charge sa grille de produits en JavaScript après le chargement initial — 
-elle est donc volontairement ignorée ici, un scraping HTML statique n'y verrait
-aucun produit.
+elle est donc volontairement ignorée ici, un scraping HTML statique n'y verrait aucun produit.
 
 NOTE SUR LES COLONNES DE RÉFÉRENCE (CSV) :
 Le site expose deux informations bien distinctes qu'il ne faut pas confondre :
-- "sku_woocommerce" : l'identifiant interne renvoyé par le site (SKU
-  WooCommerce, ou à défaut l'ID produit en base, ou en mode de repli le
-  slug de l'URL). C'est un identifiant de GESTION côté vendeur, saisi/généré
-  indépendamment du titre, pas fiable comme référence horlogère : il peut
-  être vide, réutilisé d'une ancienne fiche, ou totalement arbitraire. On le
-  garde uniquement pour détecter de façon stable les changements de prix
-  d'une même fiche d'un relevé à l'autre.
-- "ref." : la référence telle qu'annoncée dans le TITRE du
-  produit (ex. "ref 2849"), extraite par regex. C'est ce que voit vraiment
-  le client sur le site — mais elle peut être absente (titre sans "ref").
+- "sku_woocommerce" : l'identifiant interne renvoyé par le site (SKU WooCommerce, 
+  ou à défaut l'ID produit en base, ou en mode de repli le slug de l'URL). 
+  C'est un identifiant de GESTION côté vendeur, saisi/généré indépendamment du titre,
+  pas fiable comme référence horlogère : il peut être vide, réutilisé d'une ancienne fiche,
+  ou totalement arbitraire. On le garde uniquement pour détecter de façon stable les 
+  changements de prix d'une même fiche d'un relevé à l'autre.
+- "ref." : la référence telle qu'annoncée dans le TITRE du produit (ex. "ref 2849"), 
+  extraite par regex. C'est ce que voit vraiment le client sur le site ; 
+  mais elle peut être absente (titre sans "ref").
 
 Le format du CSV n'a PAS changé : l'URL de chaque fiche n'est utilisée que
 pour la page HTML et les messages Telegram, elle n'est pas écrite dans le CSV.
@@ -91,9 +87,9 @@ META_AVAIL_RE = re.compile(r'meta-product:availability:\s*(.+)', re.I)
 META_TITLE_RE = re.compile(r'^title:\s*(.+)', re.I | re.M)
 PRODUCT_URL_RE = re.compile(r'https://timekeeping\.fr/products/[a-z0-9\-]+', re.I)
 
-# Référence "annoncée" : on cherche d'abord un motif "ref XXX" explicite dans
-# le titre (cas le plus fréquent et le plus fiable) ; à défaut, on retombe
-# sur un éventuel nombre de référence en fin de titre (ex. "Chronomètre 2367").
+# Référence "annoncée" : on cherche d'abord un motif "ref XXX" explicite dans le titre 
+# (cas le plus fréquent et le plus fiable) ; à défaut, on retombe sur un éventuel nombre
+# de référence en fin de titre (ex. "Chronomètre 2367").
 REF_KEYWORD_RE = re.compile(r'\bref\.?\s*([A-Za-z0-9][\w./-]*)', re.IGNORECASE)
 REF_TRAILING_RE = re.compile(r'(\d[\d.\-]*\d|\d)\s*$')
 
@@ -117,8 +113,7 @@ def _headers():
 
 def fetch_via_store_api() -> list[dict] | None:
     """Tente l'API Store WooCommerce. Retourne None si indisponible
-    (l'appelant doit alors utiliser le repli), ou la liste de toutes les
-    montres Omega."""
+    (l'appelant doit alors utiliser le repli), ou la liste de toutes les montres Omega."""
     try:
         resp = requests.get(
             STORE_API,
@@ -179,9 +174,8 @@ def fetch_via_search_fallback() -> list[dict]:
         avail_m = META_AVAIL_RE.search(page.text)
         rows.append({
             "title": title,
-            # Pas de vrai SKU disponible en mode de repli (pas d'appel à
-            # l'API Store) : on utilise le slug de l'URL comme identifiant
-            # interne stable pour le suivi des prix.
+            # Pas de vrai SKU disponible en mode de repli (pas d'appel à l'API Store) : 
+            # on utilise le slug de l'URL comme identifiant interne stable pour le suivi des prix.
             "sku_woocommerce": url.rsplit("/", 1)[-1],
             "ref.": extract_reference_from_title(title),
             "price": price_m.group(1) if price_m else "N/A",
@@ -305,7 +299,6 @@ def migrate_legacy_csv(csv_path: Path) -> None:
     print(f"[INFO] {csv_path} migré vers le nouveau format "
           f"({len(rows)} ligne(s)).")
 
-
 # --------------------------------------------------------------------------
 # Page HTML des montres actuellement en ligne
 # --------------------------------------------------------------------------
@@ -321,10 +314,9 @@ def fmt_price(raw: str) -> str:
 
 
 def write_html_page(data: list[dict], changes: dict) -> None:
-    """Page HTML listant toutes les montres actuellement présentes sur le
-    site, avec de VRAIS liens cliquables. Réécrite à chaque exécution (état
-    du jour, pas un journal). Les montres nouvelles ou dont le prix vient de
-    changer lors de ce relevé sont signalées par une pastille."""
+    """Page HTML listant toutes les montres actuellement présentes sur le site, 
+    avec de VRAIS liens cliquables. Réécrite à chaque exécution (état du jour, pas un journal). 
+    Les montres nouvelles ou dont le prix vient de changer lors de ce relevé sont signalées par une pastille."""
     def esc(v):
         return html.escape(str(v or ""))
 
@@ -378,7 +370,7 @@ def write_html_page(data: list[dict], changes: dict) -> None:
  caption {{ text-align: left; margin-bottom: 0.5em; color: #555; }}
 </style></head>
 <body>
-<h1>Montres Omega en ligne sur timekeeping.fr</h1>
+<h1>Montres Omega en ligne sur Timekeeping.fr</h1>
 <table>
 <caption>{len(items)} montre(s) — relevé du {generated} — triées par prix croissant</caption>
 <tr><th>Montre</th><th>Réf.</th><th>Prix</th><th>Stock</th><th></th></tr>
@@ -392,7 +384,7 @@ def write_html_page(data: list[dict], changes: dict) -> None:
 
 
 # --------------------------------------------------------------------------
-# Notification Telegram (même bot que recherche_immobilier.py)
+# Notification Telegram
 # --------------------------------------------------------------------------
 
 def load_telegram_config(path: Path):
@@ -428,7 +420,7 @@ def telegram_summary(changes: dict) -> str:
     de prix."""
     n_new, n_sold = len(changes["new"]), len(changes["sold"])
     n_price = len(changes["price"])
-    lines = [f"⌚ Omega timekeeping.fr : {n_new} nouvelle(s) offre(s), "
+    lines = [f"⌚ Omega Timekeeping.fr : {n_new} nouvelle(s) offre(s), "
              f"{n_sold} vendue(s), {n_price} changement(s) de prix"]
     for r in changes["new"]:
         lines.append(f"+ NOUVELLE : {r['title']} — {fmt_price(r['price'])}")
@@ -484,7 +476,7 @@ def main() -> int:
     if changes["first_run"]:
         token, chat_id = load_telegram_config(Path(os.path.expanduser(TELEGRAM_CONFIG)))
         send_telegram(token, chat_id,
-                      f"⌚ Omega timekeeping.fr : suivi initialisé, "
+                      f"⌚ Omega Timekeeping.fr : suivi initialisé, "
                       f"{len(om_list)} montre(s) en ligne.")
     elif changes["new"] or changes["sold"] or changes["price"]:
         token, chat_id = load_telegram_config(Path(os.path.expanduser(TELEGRAM_CONFIG)))
