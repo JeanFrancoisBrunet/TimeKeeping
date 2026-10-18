@@ -423,13 +423,13 @@ def telegram_summary(changes: dict) -> str:
     lines = [f"⌚ Omega Timekeeping.fr : {n_new} nouvelle(s) offre(s), "
              f"{n_sold} vendue(s), {n_price} changement(s) de prix"]
     for r in changes["new"]:
-        lines.append(f"+ NOUVELLE : {r['title']} — {fmt_price(r['price'])}")
+        lines.append(f"+ Nouvelle : {r['title']} — {fmt_price(r['price'])}")
         if r.get("url"):
             lines.append(f"  {r['url']}")
     for r in changes["sold"]:
-        lines.append(f"✖ VENDUE : {r['title']} (dernier prix {fmt_price(r['price'])})")
+        lines.append(f"✖ Vendue : {r['title']} (dernier prix {fmt_price(r['price'])})")
     for r, old in changes["price"]:
-        lines.append(f"~ PRIX : {r['title']} — {fmt_price(old)} -> "
+        lines.append(f"~ Prix : {r['title']} — {fmt_price(old)} -> "
                      f"{fmt_price(r['price'])}")
         if r.get("url"):
             lines.append(f"  {r['url']}")
